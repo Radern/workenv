@@ -1,0 +1,115 @@
+# Pour un environnemnt Apache/Mysql/php/phpmyadmin/Tomcat/Eclipse
+# site en local dans le répertoire www
+# Repertoire Eclipse de travail local workspace dans le répertoire Eclise-data
+# base de données local donc persistence des données
+# Mon container Java
+
+java:
+  build: ./apps/java
+  volumes:
+    - vol_rad_java:/opt/java-bin
+  labels:
+    - "nature=binaries"
+  container_name: rad_java
+
+# Mon container Tomcat
+tomcat:
+  build: ./apps/tomcat
+  volumes:
+    - vol_rad_tomcat:/tomcat-bin
+  labels:
+    - "nature=binaries"
+  container_name: rad_tomcat
+
+# Mon container Maven
+maven:
+  build: ./apps/maven
+  volumes:
+    - vol_rad_maven:/apache-maven
+  labels:
+    - "nature=binaries"
+  container_name: rad_maven
+
+# Mon container Eclipse Data
+eclipsedata:
+  build: ./apps/eclipse-data
+  volumes:
+    - ./eclipse-data/maven-projects:/home/javadev/workspace/maven-projects
+    - ./eclipse-data/workspace:/home/javadev/workspace
+  labels:
+    - "nature=data"
+  command: chown -R 1000:1000 /home/javadev/workspace
+  container_name: rad_eclipse-data
+
+# Mon container Eclipse
+eclipse:
+  build: ./apps/eclipse
+  volumes:
+    - /tmp/.X11-unix:/tmp/.X11-unix
+  volumes_from:
+    - java
+    - tomcat
+    - eclipsedata
+    - maven
+  environment:
+    - DISPLAY
+    - WORKSPACE=/home/javadev/workspace
+  ports:
+    - "8082:8080"
+  links:
+   - mysql:mysql
+  labels:
+    - "nature=process"
+  container_name: rad_eclipse
+
+# Mon container SQL
+mysql:
+  image: mysql:5.7
+  environment:
+    MYSQL_USER: dbuser
+    MYSQL_PASSWORD: dbpassword
+    MYSQL_ROOT_PASSWORD: dbrootpassword
+    MYSQL_DATABASE: dbdatabase
+  volumes:
+    - vol_rad_mysql:/var/lib/mysql
+  container_name: rad_mysql
+  labels:
+    - "nature=process"
+
+# Mon container PHPMYADMIN
+phpmyadmin:
+  image: phpmyadmin/phpmyadmin
+  links:
+    - mysql
+  environment:
+    PMA_HOST: mysql
+    PMA_PORT: 3306
+  ports:
+    - '8081:80'
+  container_name: rad_phpmyadmin  
+
+# Gestionnaire Docker, mise en place sur port 9002 (car xdebug php sur 9000)
+portainer:
+  image: portainer/portainer
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+  ports:
+    - '9002:9000'
+  container_name: portainer
+
+# Mon container php basé sur l'image apache du répertoire apache
+apache:
+  build: ./apps/apache
+  ports:
+    - '80:80'
+  links:
+    - mysql
+  environment:
+    XDEBUG_CONFIG: remote_host=192.168.1.13
+    XDEBUG_CONFIG: remote_mode="jit"
+    XDEBUG_CONFIG: remote_port="9000"
+    XDEBUG_CONFIG: idekey = "ECLIPSE_DBGP"
+  volumes:
+    - /home/danny/workspace/Oxygen/phptest/:/var/www/site
+  container_name: rad_apache
+
